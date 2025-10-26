@@ -1,19 +1,22 @@
-﻿class Program
+﻿using System;
+using System.Collections.Generic;
+
+class Program
 {
     private static readonly Dictionary<char, int> EnergyCost = new()
     {
         { 'A', 1 }, { 'B', 10 }, { 'C', 100 }, { 'D', 1000 }
     };
-
+    
     private static readonly Dictionary<char, int> TargetRoomIndex = new()
     {
         { 'A', 0 }, { 'B', 1 }, { 'C', 2 }, { 'D', 3 }
     };
-
+    
     private static readonly int[] RoomPositions = [2, 4, 6, 8];
-
+    
     private static readonly int[] ValidHallwayStops = [0, 1, 3, 5, 7, 9, 10];
-
+    
     private record State
     {
         public string Hallway { get; init; }
@@ -42,7 +45,7 @@
     {
         var initialState = ParseState(lines);
         if (initialState is null) return -1;
-
+        
         var gScore = new Dictionary<State, int>();
         var openSet = new PriorityQueue<State, int>();
 
@@ -52,14 +55,14 @@
         while (openSet.Count > 0)
         {
             var current = openSet.Dequeue();
-
+            
             if (IsFinalState(current))
                 return gScore[current];
-
+            
             foreach (var (neighbor, moveCost) in GetNextStates(current))
             {
                 var stateScore = gScore[current] + moveCost;
-
+                
                 if (stateScore < gScore.GetValueOrDefault(neighbor, int.MaxValue))
                 {
                     gScore[neighbor] = stateScore;
@@ -71,7 +74,7 @@
 
         return 0;
     }
-
+    
     private static IEnumerable<(State newState, int cost)> GetNextStates(State state)
     {
         // из коридора в комнату
@@ -82,10 +85,10 @@
 
             var targetRoom = TargetRoomIndex[hallwayObject];
             var targetObject = "ABCD"[targetRoom];
-
+            
             var roomIsReady = state.Rooms[targetRoom].All(c => c == '.' || c == targetObject);
             if (!roomIsReady) continue;
-
+            
             var roomX = RoomPositions[targetRoom];
             var start = Math.Min(i, roomX);
             var end = Math.Max(i, roomX);
@@ -100,7 +103,7 @@
             }
 
             if (!pathIsClear) continue;
-
+            
             var targetDepth = -1;
             for (var d = state.RoomDepth - 1; d >= 0; d--)
             {
@@ -110,19 +113,19 @@
                     break;
                 }
             }
-
+            
             if (targetDepth == -1) continue;
-
+            
             var hallwayDist = Math.Abs(i - roomX);
             var roomDist = targetDepth + 1;
             var cost = (hallwayDist + roomDist) * EnergyCost[hallwayObject];
-
+            
             var newHallway = state.Hallway.ToCharArray();
             newHallway[i] = '.';
 
             var newRooms = state.Rooms.Select(r => r.ToCharArray()).ToList();
             newRooms[targetRoom][targetDepth] = hallwayObject;
-
+                        
             yield return (
                 new State
                 {
@@ -134,13 +137,13 @@
                 );
         }
 
-        //  из комнаты в коридор
+        // из комнаты в коридор
         for (var roomIndex = 0; roomIndex < 4; roomIndex++)
         {
             var needsToMoveOut = !state.Rooms[roomIndex].All(c => c == '.' || TargetRoomIndex[c] == roomIndex);
 
             if (!needsToMoveOut) continue;
-
+            
             var depthToMove = -1;
             var objectToMove = '.';
             for (var d = 0; d < state.RoomDepth; d++)
@@ -154,7 +157,7 @@
             }
 
             if (objectToMove == '.') continue;
-
+            
             foreach (var stopPos in ValidHallwayStops)
             {
                 var roomX = RoomPositions[roomIndex];
@@ -171,11 +174,11 @@
                 }
 
                 if (!pathIsClear) continue;
-
+                
                 var hallwayDist = Math.Abs(stopPos - roomX);
                 var roomDist = depthToMove + 1;
                 var cost = (hallwayDist + roomDist) * EnergyCost[objectToMove];
-
+                
                 var newHallway = state.Hallway.ToCharArray();
                 newHallway[stopPos] = objectToMove;
 
@@ -194,42 +197,40 @@
             }
         }
     }
-
+    
     private static int CalculateHeuristic(State state)
     {
         var totalCost = 0;
-
-        // для объектов в коридоре
+        
         for (var i = 0; i < state.Hallway.Length; i++)
         {
             var hallwayObject = state.Hallway[i];
             if (hallwayObject == '.') continue;
-
+            
             var targetRoom = TargetRoomIndex[hallwayObject];
             var roomX = RoomPositions[targetRoom];
             totalCost += (Math.Abs(i - roomX) + 1) * EnergyCost[hallwayObject];
         }
-
-        // для объектов в комнатах
+        
         for (var roomIndex = 0; roomIndex < 4; roomIndex++)
         {
             for (var d = 0; d < state.RoomDepth; d++)
             {
                 var roomObject = state.Rooms[roomIndex][d];
                 if (roomObject == '.') continue;
-
+                
                 var targetRoom = TargetRoomIndex[roomObject];
                 if (targetRoom == roomIndex) continue;
-
+                
                 var currentRoomX = RoomPositions[roomIndex];
                 var targetRoomX = RoomPositions[targetRoom];
-
+                
                 totalCost += (Math.Abs(currentRoomX - targetRoomX) + d + 2) * EnergyCost[roomObject];
             }
         }
         return totalCost;
     }
-
+    
     private static bool IsFinalState(State state)
     {
         for (var i = 0; i < 4; i++)
@@ -240,7 +241,7 @@
         }
         return true;
     }
-
+    
     private static State? ParseState(List<string> lines)
     {
         if (lines.Count < 5) return null;
@@ -258,7 +259,7 @@
 
         return new State { Hallway = hallway, Rooms = rooms, RoomDepth = roomDepth };
     }
-
+    
     static void Main()
     {
         var lines = new List<string>();
