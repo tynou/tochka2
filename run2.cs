@@ -8,12 +8,12 @@ class Program
     {
         public readonly Dictionary<char, HashSet<char>> AdjacencyList;
         public readonly HashSet<char> Gates;
-        
+
         public Graph(List<(string, string)> edges)
         {
             AdjacencyList = new Dictionary<char, HashSet<char>>();
             Gates = [];
-            
+
             var allNodes = new HashSet<char>();
             foreach (var edge in edges)
             {
@@ -27,7 +27,7 @@ class Program
                 if (char.IsUpper(node))
                     Gates.Add(node);
             }
-            
+
             foreach (var edge in edges)
             {
                 var u = edge.Item1[0];
@@ -41,12 +41,12 @@ class Program
         {
             if (AdjacencyList.TryGetValue(node1, out var value1))
                 value1.Remove(node2);
-            
+
             if (AdjacencyList.TryGetValue(node2, out var value2))
                 value2.Remove(node1);
         }
     }
-    
+
     private static string GetVirusPath(List<string> paths)
     {
         paths.Sort((p1, p2) =>
@@ -54,22 +54,22 @@ class Program
             var gateCompare = p1.Last().CompareTo(p2.Last());
             if (gateCompare != 0)
                 return gateCompare;
-            
+
             if (p1.Length > 1 && p2.Length > 1)
                 return p1[1].CompareTo(p2[1]);
 
             return 0;
         });
-        
+
         return paths[0];
     }
-    
+
     private static List<string> GetShortestRoutes(char currentNode, Graph graph)
     {
         var shortestPaths = new List<string>();
         var queue = new Queue<string>();
         queue.Enqueue(currentNode.ToString());
-        
+
         while (queue.Count > 0)
         {
             var currentLevelSize = queue.Count;
@@ -77,8 +77,8 @@ class Program
             {
                 var path = queue.Dequeue();
                 var lastNode = path.Last();
-                
-                foreach (var neighbor in graph.AdjacencyList[lastNode])
+
+                foreach (var neighbor in graph.AdjacencyList[lastNode].OrderBy(n => n))
                 {
                     if (path.Contains(neighbor))
                         continue;
@@ -90,14 +90,14 @@ class Program
                         queue.Enqueue(newPath);
                 }
             }
-            
+
             if (shortestPaths.Count > 0)
                 return shortestPaths;
         }
-        
+
         return shortestPaths;
     }
-    
+
     static List<string> Solve(List<(string, string)> edges)
     {
         var graph = new Graph(edges);
@@ -107,20 +107,20 @@ class Program
         while (true)
         {
             var shortestPaths = GetShortestRoutes(currentNode, graph);
-            
+
             if (shortestPaths.Count == 0)
                 break;
-            
+
             var chosenPath = GetVirusPath(shortestPaths);
-            
+
             var gateway = chosenPath.Last();
             var adjacentNode = chosenPath[^2];
-            
+
             result.Add($"{gateway}-{adjacentNode}");
             graph.RemoveEdge(gateway, adjacentNode);
 
             var pathsForMovement = GetShortestRoutes(currentNode, graph);
-            
+
             if (pathsForMovement.Count != 0)
             {
                 var actualMovePath = GetVirusPath(pathsForMovement);
@@ -129,7 +129,7 @@ class Program
                     currentNode = actualMovePath[1];
             }
         }
-        
+
         return result;
     }
 
