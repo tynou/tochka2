@@ -4,129 +4,154 @@ using System.Linq;
 
 class Program
 {
-    private class Graph
+    // Класс для представления графа и управления им
+    class Graph
     {
-        public readonly Dictionary<char, HashSet<char>> AdjacencyList;
-        public readonly HashSet<char> Gates;
+        public Dictionary<string, HashSet<string>> AdjacencyList { get; } = new Dictionary<string, HashSet<string>>();
 
-        public Graph(List<(string, string)> edges)
+        public void AddEdge(string u, string v)
         {
-            AdjacencyList = new Dictionary<char, HashSet<char>>();
-            Gates = [];
-
-            var allNodes = new HashSet<char>();
-            foreach (var edge in edges)
-            {
-                allNodes.Add(edge.Item1[0]);
-                allNodes.Add(edge.Item2[0]);
-            }
-
-            foreach (var node in allNodes)
-            {
-                AdjacencyList[node] = [];
-                if (char.IsUpper(node))
-                    Gates.Add(node);
-            }
-
-            foreach (var edge in edges)
-            {
-                var u = edge.Item1[0];
-                var v = edge.Item2[0];
-                AdjacencyList[u].Add(v);
-                AdjacencyList[v].Add(u);
-            }
+            if (!AdjacencyList.ContainsKey(u)) AdjacencyList[u] = new HashSet<string>();
+            if (!AdjacencyList.ContainsKey(v)) AdjacencyList[v] = new HashSet<string>();
+            AdjacencyList[u].Add(v);
+            AdjacencyList[v].Add(u);
         }
 
-        public void RemoveEdge(char node1, char node2)
+        public void RemoveEdge(string u, string v)
         {
-            if (AdjacencyList.TryGetValue(node1, out var value1))
-                value1.Remove(node2);
-
-            if (AdjacencyList.TryGetValue(node2, out var value2))
-                value2.Remove(node1);
+            if (AdjacencyList.ContainsKey(u)) AdjacencyList[u].Remove(v);
+            if (AdjacencyList.ContainsKey(v)) AdjacencyList[v].Remove(u);
         }
     }
 
-    private static string GetVirusPath(List<string> paths)
+    // Реализация Поиска в ширину (BFS)
+    // Возвращает словарь {узел -> расстояние от startNode}
+    static Dictionary<string, int> Bfs(string startNode, Graph graph)
     {
-        paths.Sort((p1, p2) =>
+        var distances = new Dictionary<string, int>();
+        if (!graph.AdjacencyList.ContainsKey(startNode))
         {
-            var gateCompare = p1.Last().CompareTo(p2.Last());
-            if (gateCompare != 0)
-                return gateCompare;
+            return distances; // Стартовый узел не в графе
+        }
 
-            if (p1.Length > 1 && p2.Length > 1)
-                return p1[1].CompareTo(p2[1]);
-
-            return 0;
-        });
-
-        return paths[0];
-    }
-
-    private static List<string> GetShortestRoutes(char currentNode, Graph graph)
-    {
-        var shortestPaths = new List<string>();
         var queue = new Queue<string>();
-        queue.Enqueue(currentNode.ToString());
+        
+        queue.Enqueue(startNode);
+        distances[startNode] = 0;
 
         while (queue.Count > 0)
         {
-            var currentLevelSize = queue.Count;
-            for (var i = 0; i < currentLevelSize; i++)
+            var currentNode = queue.Dequeue();
+            foreach (var neighbor in graph.AdjacencyList[currentNode].OrderBy(n => n))
             {
-                var path = queue.Dequeue();
-                var lastNode = path.Last();
-
-                foreach (var neighbor in graph.AdjacencyList[lastNode].OrderBy(n => n))
+                if (!distances.ContainsKey(neighbor))
                 {
-                    if (path.Contains(neighbor))
-                        continue;
-
-                    var newPath = path + neighbor;
-                    if (graph.Gates.Contains(neighbor))
-                        shortestPaths.Add(newPath);
-                    else
-                        queue.Enqueue(newPath);
+                    distances[neighbor] = distances[currentNode] + 1;
+                    queue.Enqueue(neighbor);
                 }
             }
-
-            if (shortestPaths.Count > 0)
-                return shortestPaths;
         }
-
-        return shortestPaths;
+        return distances;
     }
 
     static List<string> Solve(List<(string, string)> edges)
     {
-        var graph = new Graph(edges);
         var result = new List<string>();
-        var currentNode = 'a';
+        var graph = new Graph();
+        var gateways = new HashSet<string>();
+        string virusPos = "a";
 
+        // 1. Построение графа и определение шлюзов
+        foreach (var (u, v) in edges)
+        {
+            graph.AddEdge(u, v);
+            if (char.IsUpper(u[0])) gateways.Add(u);
+            if (char.IsUpper(v[0])) gateways.Add(v);
+        }
+
+        // 2. Основной цикл симуляции
         while (true)
         {
-            var shortestPaths = GetShortestRoutes(currentNode, graph);
+            // --- ЭТАП 1: Анализ от лица вируса (чтобы мы могли принять решение) ---
 
-            if (shortestPaths.Count == 0)
-                break;
+            // 1a. Находим кратчайшие пути от вируса
+            var distFromVirus = Bfs(virusPos, graph);
 
-            var chosenPath = GetVirusPath(shortestPaths);
+            // 1b. Ищем целевой шлюз
+            string targetGateway = null;
+            int minDistance = int.MaxValue;
 
-            var gateway = chosenPath.Last();
-            var adjacentNode = chosenPath[^2];
-
-            result.Add($"{gateway}-{adjacentNode}");
-            graph.RemoveEdge(gateway, adjacentNode);
-
-            var pathsForMovement = GetShortestRoutes(currentNode, graph);
-
-            if (pathsForMovement.Count != 0)
+            // Используем SortedSet для автоматической сортировки шлюзов по имени
+            foreach (var gateway in gateways.OrderBy(g => g))
             {
-                var actualMovePath = GetVirusPath(pathsForMovement);
+                int currentGatewayDist = int.MaxValue;
+                if (!graph.AdjacencyList.ContainsKey(gateway)) continue;
 
-                if (actualMovePath.Length > 1)
-                    currentNode = actualMovePath[1];
+                // Расстояние до шлюза = 1 + минимальное расстояние до его соседа
+                foreach (var neighbor in graph.AdjacencyList[gateway])
+                {
+                    if (distFromVirus.TryGetValue(neighbor, out int dist))
+                    {
+                        currentGatewayDist = Math.Min(currentGatewayDist, dist + 1);
+                    }
+                }
+                
+                if (currentGatewayDist < minDistance)
+                {
+                    minDistance = currentGatewayDist;
+                    targetGateway = gateway;
+                }
+            }
+            
+            // 1c. Если шлюзы недостижимы, игра окончена
+            if (targetGateway == null)
+            {
+                break;
+            }
+
+            // --- ЭТАП 2: Наш ход (отключение коридора) ---
+
+            // 2a. Находим узел, который нужно отключить от targetGateway.
+            // Это сосед шлюза на кратчайшем пути от вируса.
+            // По правилу детерминированности, выбираем лексикографически наименьший.
+            string nodeToCut = graph.AdjacencyList[targetGateway]
+                .Where(neighbor => distFromVirus.ContainsKey(neighbor) && distFromVirus[neighbor] + 1 == minDistance)
+                .OrderBy(n => n)
+                .First();
+
+            // 2b. Форматируем и сохраняем результат, отключаем коридор
+            string edgeToCut = $"{targetGateway}-{nodeToCut}";
+            result.Add(edgeToCut);
+            graph.RemoveEdge(targetGateway, nodeToCut);
+
+            // --- ЭТАП 3: Ход вируса (перемещение) ---
+            
+            // 3a. Находим путь вируса на графе, который был ДО нашего хода.
+            // Для этого временно вернем удаленное ребро.
+            graph.AddEdge(targetGateway, nodeToCut);
+            var distToGateway = Bfs(targetGateway, graph);
+            graph.RemoveEdge(targetGateway, nodeToCut); // И уберем его снова
+
+            // 3b. Определяем следующий шаг вируса
+            string virusNextNode = null;
+            if (graph.AdjacencyList.ContainsKey(virusPos))
+            {
+                virusNextNode = graph.AdjacencyList[virusPos]
+                    .Where(neighbor => distToGateway.ContainsKey(neighbor) && distToGateway[neighbor] < distToGateway[virusPos])
+                    .OrderBy(n => n)
+                    .FirstOrDefault();
+            }
+
+            // 3c. Обновляем позицию вируса
+            if (virusNextNode != null)
+            {
+                virusPos = virusNextNode;
+            }
+            else
+            {
+                 // Вирусу некуда идти, чтобы приблизиться к цели (например, мы отрезали единственный путь)
+                 // В рамках задачи, это состояние эквивалентно победе, так как он не может достичь шлюза.
+                 // Можно было бы завершить цикл, но он завершится на следующей итерации, когда targetGateway не будет найден.
             }
         }
 
@@ -136,21 +161,33 @@ class Program
     static void Main()
     {
         var edges = new List<(string, string)>();
-        string? line;
+        string line;
 
         while ((line = Console.ReadLine()) != null && line != "")
         {
             line = line.Trim();
-            if (!string.IsNullOrEmpty(line))
+            if (!string.IsNullOrEmpty(line) && line != "")
             {
                 var parts = line.Split('-');
                 if (parts.Length == 2)
-                    edges.Add((parts[0], parts[1]));
+                {
+                    // Гарантируем лексикографический порядок для удобства, хотя для HashSet это неважно
+                    if (string.Compare(parts[0], parts[1]) > 0)
+                    {
+                        edges.Add((parts[1], parts[0]));
+                    }
+                    else
+                    {
+                        edges.Add((parts[0], parts[1]));
+                    }
+                }
             }
         }
 
         var result = Solve(edges);
         foreach (var edge in result)
+        {
             Console.WriteLine(edge);
+        }
     }
 }
