@@ -50,7 +50,9 @@ class Program
     
     private static string GetVirusPath(List<string> paths)
     {
-        paths.Sort((p1, p2) =>
+        var minLength = paths.Select(path => path.Length).Min();
+        var shortestPaths = paths.Where(path => path.Length == minLength).ToList();
+        shortestPaths.Sort((p1, p2) =>
         {
             var gateCompare = p1.Last().CompareTo(p2.Last());
             if (gateCompare != 0)
@@ -62,7 +64,7 @@ class Program
             return 0;
         });
         
-        return paths[0];
+        return shortestPaths[0];
     }
     
     private static List<string> GetShortestRoutes(char currentNode, Graph graph)
@@ -119,9 +121,16 @@ class Program
             
             result.Add($"{gateway}-{adjacentNode}");
             graph.RemoveEdge(gateway, adjacentNode);
+
+            var pathsForMovement = GetShortestRoutes(currentNode, graph);
             
-            if (chosenPath.Length > 1)
-                currentNode = chosenPath[1];
+            if (pathsForMovement.Count != 0)
+            {
+                var actualMovePath = GetVirusPath(pathsForMovement);
+            
+                if (actualMovePath.Length > 1)
+                    currentNode = actualMovePath[1];
+            }
         }
         
         return result;
