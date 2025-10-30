@@ -164,7 +164,6 @@ class Program
                     var paths = GetPaths(currentNode, graph);
                     if (paths.Count == 0)
                         break;
-
                     var path = GetShortestPath(paths);
                     if (path.Length > 1)
                         currentNode = path[1];
