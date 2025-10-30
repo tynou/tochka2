@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 class Program
@@ -9,12 +8,12 @@ class Program
     {
         public readonly Dictionary<char, HashSet<char>> AdjacencyList;
         public readonly HashSet<char> Gates;
-
+        
         public Graph(List<(string, string)> edges)
         {
             AdjacencyList = new Dictionary<char, HashSet<char>>();
             Gates = [];
-
+            
             var allNodes = new HashSet<char>();
             foreach (var edge in edges)
             {
@@ -28,7 +27,7 @@ class Program
                 if (char.IsUpper(node))
                     Gates.Add(node);
             }
-
+            
             foreach (var edge in edges)
             {
                 var u = edge.Item1[0];
@@ -38,24 +37,22 @@ class Program
             }
         }
 
-        public Graph(Graph graph)
-        {
-            AdjacencyList = new Dictionary<char, HashSet<char>>();
-            foreach (var (node, adjacentNodes) in graph.AdjacencyList)
-                AdjacencyList[node] = [.. adjacentNodes];
-            Gates = [.. graph.Gates];
-        }
-
         public void RemoveEdge(char u, char v)
         {
             if (AdjacencyList.TryGetValue(u, out var value1))
                 value1.Remove(v);
-
+            
             if (AdjacencyList.TryGetValue(v, out var value2))
                 value2.Remove(u);
         }
+        
+        public void MakeEdge(char u, char v)
+        {
+            AdjacencyList[u].Add(v);
+            AdjacencyList[v].Add(u);
+        }
     }
-
+    
     private static string GetShortestPath(List<string> paths)
     {
         paths.Sort((p1, p2) =>
@@ -63,27 +60,27 @@ class Program
             var gateCompare = p1.Last().CompareTo(p2.Last());
             if (gateCompare != 0)
                 return gateCompare;
-
+            
             if (p1.Length > 1 && p2.Length > 1)
                 return p1[1].CompareTo(p2[1]);
 
             return 0;
         });
-
+        
         return paths[0];
     }
-
+    
     private static List<string> GetPaths(char currentNode, Graph graph)
     {
         var paths = new List<string>();
         var queue = new Queue<string>();
         queue.Enqueue(currentNode.ToString());
-
+        
         while (queue.Count > 0)
         {
             var path = queue.Dequeue();
             var lastNode = path.Last();
-
+            
             foreach (var neighbor in graph.AdjacencyList[lastNode].OrderBy(n => n))
             {
                 if (path.Contains(neighbor))
@@ -96,50 +93,10 @@ class Program
                     queue.Enqueue(newPath);
             }
         }
-
+        
         return paths;
     }
-
-    private static bool IsWinning(Graph graph, char currentNode, char gate, char adj)
-    {
-        var graphCopy = new Graph(graph);
-        graphCopy.RemoveEdge(gate, adj);
-
-        var simulatedPaths = GetPaths(currentNode, graphCopy);
-        if (simulatedPaths.Count == 0)
-            return true;
-
-        var simulatedPath = GetShortestPath(simulatedPaths);
-        if (simulatedPath.Length <= 2)
-            return false;
-
-        currentNode = simulatedPath[1];
-
-        while (true)
-        {
-            var paths = GetPaths(currentNode, graphCopy);
-            if (paths.Count == 0)
-                return true;
-
-            var chosenPath = GetShortestPath(paths);
-
-            var gateway = chosenPath.Last();
-            var adjacentNode = chosenPath[^2];
-
-            graphCopy.RemoveEdge(gateway, adjacentNode);
-
-            var pathsForMovement = GetPaths(currentNode, graphCopy);
-            if (pathsForMovement.Count == 0)
-                return true;
-
-            var actualMovePath = GetShortestPath(pathsForMovement);
-            if (actualMovePath.Length <= 2)
-                return false;
-
-            currentNode = actualMovePath[1];
-        }
-    }
-
+    
     static List<string> Solve(List<(string, string)> edges)
     {
         var graph = new Graph(edges);
@@ -150,28 +107,34 @@ class Program
         {
             if (GetPaths(currentNode, graph).Count == 0)
                 break;
-
+            
             var cutOptions = new List<(char, char)>();
             foreach (var gate in graph.Gates.OrderBy(g => g))
                 cutOptions.AddRange(graph.AdjacencyList[gate].OrderBy(n => n).Select(adjacent => (gate, adjacent)));
-
+            
             foreach (var (gate, adj) in cutOptions)
             {
-                if (IsWinning(graph, currentNode, gate, adj))
+                graph.RemoveEdge(gate, adj);
+                
+                var paths = GetPaths(currentNode, graph);
+                if (paths.Count == 0)
                 {
                     result.Add($"{gate}-{adj}");
-                    graph.RemoveEdge(gate, adj);
-                    var paths = GetPaths(currentNode, graph);
-                    if (paths.Count == 0)
-                        break;
-                    var path = GetShortestPath(paths);
-                    if (path.Length > 1)
-                        currentNode = path[1];
                     break;
                 }
+            
+                var chosenPath = GetShortestPath(paths);
+                if (chosenPath.Length > 2)
+                {
+                    result.Add($"{gate}-{adj}");
+                    currentNode = chosenPath[1];
+                    break;
+                }
+                
+                graph.MakeEdge(gate, adj);
             }
         }
-
+        
         return result;
     }
 
