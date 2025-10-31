@@ -66,6 +66,7 @@ class Program
 
             return 0;
         });
+
         return paths[0];
     }
 
