@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 class Program
@@ -37,29 +38,21 @@ class Program
             }
         }
 
-        public void RemoveEdge(char u, char v)
+        public void RemoveEdge(char node1, char node2)
         {
-            if (AdjacencyList.TryGetValue(u, out var value1))
-                value1.Remove(v);
+            if (AdjacencyList.TryGetValue(node1, out var value1))
+                value1.Remove(node2);
 
-            if (AdjacencyList.TryGetValue(v, out var value2))
-                value2.Remove(u);
-        }
-
-        public void MakeEdge(char u, char v)
-        {
-            AdjacencyList[u].Add(v);
-            AdjacencyList[v].Add(u);
+            if (AdjacencyList.TryGetValue(node2, out var value2))
+                value2.Remove(node1);
         }
     }
 
-    private static string? GetShortestPath(char currentNode, Graph graph)
+    private static string GetVirusPath(List<string> paths)
     {
-        var paths = GetPaths(currentNode, graph);
-        if (paths.Count == 0)
-            return null;
-
-        paths.Sort((p1, p2) =>
+        var minLength = paths.Select(path => path.Length).Min();
+        var shortestPaths = paths.Where(path => path.Length == minLength).ToList();
+        shortestPaths.Sort((p1, p2) =>
         {
             var gateCompare = p1.Last().CompareTo(p2.Last());
             if (gateCompare != 0)
@@ -71,34 +64,41 @@ class Program
             return 0;
         });
 
-        return paths[0];
+        return shortestPaths[0];
     }
 
-    private static List<string> GetPaths(char currentNode, Graph graph)
+    private static List<string> GetShortestRoutes(char currentNode, Graph graph)
     {
-        var paths = new List<string>();
+        var shortestPaths = new List<string>();
         var queue = new Queue<string>();
         queue.Enqueue(currentNode.ToString());
 
         while (queue.Count > 0)
         {
-            var path = queue.Dequeue();
-            var lastNode = path.Last();
-
-            foreach (var neighbor in graph.AdjacencyList[lastNode].OrderBy(n => n))
+            var currentLevelSize = queue.Count;
+            for (var i = 0; i < currentLevelSize; i++)
             {
-                if (path.Contains(neighbor))
-                    continue;
+                var path = queue.Dequeue();
+                var lastNode = path.Last();
 
-                var newPath = path + neighbor;
-                if (graph.Gates.Contains(neighbor))
-                    paths.Add(newPath);
-                else
-                    queue.Enqueue(newPath);
+                foreach (var neighbor in graph.AdjacencyList[lastNode].OrderBy(n => n))
+                {
+                    if (path.Contains(neighbor))
+                        continue;
+
+                    var newPath = path + neighbor;
+                    if (graph.Gates.Contains(neighbor))
+                        shortestPaths.Add(newPath);
+                    else
+                        queue.Enqueue(newPath);
+                }
             }
+
+            if (shortestPaths.Count > 0)
+                return shortestPaths;
         }
 
-        return paths;
+        return shortestPaths;
     }
 
     static List<string> Solve(List<(string, string)> edges)
@@ -109,27 +109,27 @@ class Program
 
         while (true)
         {
-            var cutOptions = new List<(char, char)>();
-            foreach (var gate in graph.Gates.OrderBy(g => g))
-                cutOptions.AddRange(graph.AdjacencyList[gate].OrderBy(n => n).Select(adjacent => (gate, adjacent)));
+            var shortestPaths = GetShortestRoutes(currentNode, graph);
 
-            if (cutOptions.Count == 0)
+            if (shortestPaths.Count == 0)
                 break;
 
-            foreach (var (gate, adj) in cutOptions)
+            var chosenPath = GetVirusPath(shortestPaths);
+
+            var gateway = chosenPath.Last();
+            var adjacentNode = chosenPath[^2];
+
+            result.Add($"{gateway}-{adjacentNode}");
+            graph.RemoveEdge(gateway, adjacentNode);
+
+            var pathsForMovement = GetShortestRoutes(currentNode, graph);
+
+            if (pathsForMovement.Count != 0)
             {
-                graph.RemoveEdge(gate, adj);
+                var actualMovePath = GetVirusPath(pathsForMovement);
 
-                var path = GetShortestPath(currentNode, graph);
-                if (path is null || path.Length > 2)
-                {
-                    result.Add($"{gate}-{adj}");
-                    if (path is not null)
-                        currentNode = path[1];
-                    break;
-                }
-
-                graph.MakeEdge(gate, adj);
+                if (actualMovePath.Length > 1)
+                    currentNode = actualMovePath[1];
             }
         }
 
